@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 BASE GAN: A fairly simple and flexible gan to build new projects from
+Training data should be stored in a file in the same directory as BaseGAN.
+This program was developed around the AADB dataset and thus is limited to
+a maximum resolution of 256,256. Scale denotes magnitude of downscaling
+against original value.
 """
 import os
 os.environ["KERAS_BACKEND"] = "tensorflow"
@@ -23,11 +27,15 @@ from keras import initializers
 
 resolution = 64
 scale = int(256/resolution)
+
 adam = Adam(lr=0.001, beta_1=0.5)
+
 xTrain = np.load("trainX_scale%d_.npy" %scale)
-xTrain = (xTrain.astype(np.float32)/127.5)-1
+
+xTrain = (xTrain.astype(np.float32)/127.5)-1 #Normalising
 randomDim = 16
 
+#For building GANs that generate images from noise
 def buildConvGenFromNoise(inputDimension, maxFilters = 128, outputDimension = 32, isColour = True, reLuLeakage = 0.1):
     startDim = int(outputDimension/8)
     if isColour == True:
@@ -56,6 +64,7 @@ def buildConvGenFromNoise(inputDimension, maxFilters = 128, outputDimension = 32
     
     return model
 
+#Discriminator is independent of generator input
 def buildConvDisc(inputResolution = 32, maxFilters = 128, reLuLeakage = 0.1, dropout=0.3):        
     model = Sequential()
     model.add(Conv2D(int(maxFilters/8), kernel_size=(5,5), strides=(2, 2), padding=('same'), input_shape=(inputResolution, inputResolution, 3), kernel_initializer=initializers.RandomNormal(stddev=0.02)))
@@ -76,6 +85,7 @@ def buildConvDisc(inputResolution = 32, maxFilters = 128, reLuLeakage = 0.1, dro
     
     return model
 
+#Change GAN parameters here to allow easy return to defaults
 def buildGan(inputDimension):
     global generator, discriminator, gan
     generator = buildConvGenFromNoise(inputDimension, outputDimension = resolution)
@@ -86,7 +96,8 @@ def buildGan(inputDimension):
     discOutput = discriminator(genOutput)
     gan = Model(inputs = ganInput, outputs = discOutput)
     gan.compile(loss='binary_crossentropy', optimizer=adam)
-
+    
+#Generates a sweet looking grid of images
 def plotGeneratedImages(epoch, examples=16, dim=(4, 4), figsize=(10, 10)):
     noise = np.random.normal(0, 1, size=[examples, randomDim])
     generatedImages = generator.predict(noise)
@@ -159,8 +170,13 @@ def train(epochs=1, batchSize=128, startPoint=0):
         if e == 1 or e % 5 == 0:
             plotGeneratedImages(e)
             
-    saveModels(e)        
+    saveModels(e)
+
+"""
+To start training from scratch, set start-point to 0. Otherwise, resume training
+to a specified save point with the corresponding epoch.
+"""        
 if __name__ == '__main__':
     buildGan(randomDim)
-    printModels()
-    train(40, 64, 10)
+    #printModels() #Uncomment this to view layer breakdown at start of training
+    train(50, 64, 50)
